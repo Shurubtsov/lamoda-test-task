@@ -1,6 +1,7 @@
 package models
 
 type Storage struct {
-	Name    string
-	Aviable bool
+	ID      uint   `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Aviable bool   `json:"aviable,omitempty"`
 }

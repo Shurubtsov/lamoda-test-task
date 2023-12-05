@@ -2,52 +2,63 @@ package middleware
 
 import (
 	"encoding/json"
-	"net"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/Shurubtsov/lamoda-test-task/internal/domain/models"
+	"github.com/Shurubtsov/lamoda-test-task/pkg/logging"
 )
 
-const headerIP = "X-Forwarded-For"
-
 type middleware struct {
-	productCodes map[string]string
+	ProductInUse map[string]string
 	mu           sync.RWMutex
 }
 
 func New() *middleware {
 	pc := make(map[string]string)
-	return &middleware{productCodes: pc}
+	return &middleware{ProductInUse: pc}
 }
 
-func (m *middleware) SyncReservation(next http.HandlerFunc) http.HandlerFunc {
+func (m *middleware) SyncProducts(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get(headerIP)
-		ipv4Addr := net.ParseIP(header).String()
+		logger := logging.GetLogger()
+		ipv4Addr := r.RemoteAddr
+		logger.Info().Str("ip", ipv4Addr).Msg("getting request from")
 
-		var data models.ReservationRequest
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		var products []models.Product
+		if err := json.NewDecoder(r.Body).Decode(&products); err != nil {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("сервер не смог десереализовать тело запроса"))
 			return
 		}
 
-		for _, product := range data.Products {
+		codesInUse := make([]string, 0, len(products))
+		for _, product := range products {
 			m.mu.RLock()
-			ip, ok := m.productCodes[product.Code]
+			ip, ok := m.ProductInUse[product.Code]
 			if !ok {
 				m.mu.Lock()
-				m.productCodes[product.Code] = ipv4Addr
+				m.ProductInUse[product.Code] = ipv4Addr
 				m.mu.Unlock()
 				continue
 			}
 			m.mu.RUnlock()
 			if ip != ipv4Addr {
-				w.WriteHeader(http.StatusConflict)
-				w.Write([]byte("один или несколько товаров уже используются другой системой"))
-				return
+				codesInUse = append(codesInUse, product.Code)
 			}
+		}
+
+		if len(codesInUse) > 0 {
+			var buf strings.Builder
+			buf.WriteString("один или несколько товаров уже используются другой системой:\n")
+			for _, code := range codesInUse {
+				buf.WriteString(fmt.Sprintf("{%s}\n", code))
+			}
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(buf.String()))
+			return
 		}
 		next(w, r)
 	}

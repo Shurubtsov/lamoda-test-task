@@ -1,11 +1,8 @@
 package models
 
-type ReservationRequest struct {
-	Products []Product `json:"products"`
-}
 type Product struct {
-	Code  string
-	Name  string
-	Size  int
-	Count int
+	Code  string `json:"code"`
+	Name  string `json:"name,omitempty"`
+	Size  uint   `json:"size,omitempty"`
+	Count uint   `json:"count,omitempty"`
 }
