@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS storages (
 CREATE TABLE IF NOT EXISTS products (
 	product_id serial PRIMARY KEY,
 	product_name VARCHAR (15),
-	product_serial_code VARCHAR (20) NOT NULL,
+	product_code VARCHAR (20) NOT NULL,
 	product_size SMALLINT CHECK (product_size >= 0),
 	product_count SMALLINT CHECK (product_count >= 0)
 );
