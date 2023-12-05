@@ -104,7 +104,7 @@ func init() {
 				}
 			}
 			file = short
-			return file + " -> " + runtime.FuncForPC(pc).Name() + "():" + strconv.Itoa(line)
+			return file + " | " + runtime.FuncForPC(pc).Name() + "():" + strconv.Itoa(line)
 		}
 
 		logg := zerolog.New(output).With().Timestamp().Caller().Logger()
