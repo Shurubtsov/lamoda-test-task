@@ -13,16 +13,19 @@ type Config struct {
 }
 
 type logging struct {
-	Level  int    `yaml:"level" env:"LEVEL"`
-	Output string `yaml:"output" env:"OUTPUT"`
+	Level  int    `env:"LEVEL"`
+	Output string `env:"OUTPUT"`
 }
 
 type storage struct {
-	Username string `yaml:"username" env:"DB_USERNAME"`
-	Password string `yaml:"password" env:"DB_PASSWORD"`
-	Port     string `yaml:"port" env:"DB_PORT"`
-	Database string `yaml:"database" env:"DB_DATABASE"`
-	Host     string `yaml:"host" env:"DB_HOST"`
+	Username       string `env:"DB_USERNAME"`
+	Password       string `env:"DB_PASSWORD"`
+	Port           string `env:"DB_PORT"`
+	Database       string `env:"DB_DATABASE"`
+	Host           string `env:"DB_HOST"`
+	MigrationsPath string `env:"MIGRATIONS_PATH"`
+
+	MigrationVersion uint `env:"MIGRATION_VERSION"`
 }
 
 var (
