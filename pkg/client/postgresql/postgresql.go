@@ -19,10 +19,12 @@ type Client interface {
 	QueryRow(ctx context.Context, sql string, arguments ...interface{}) pgx.Row
 	Begin(ctx context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
 // NewClient создаёт новый клиент пула соединений pgxpool от PGX драйвера для PostgreSQL.
-func NewClient(ctx context.Context, maxAttemts int, cfg config.Config) (pool *pgxpool.Pool, err error) {
+func NewClient(ctx context.Context, maxAttemts int) (pool *pgxpool.Pool, err error) {
+	cfg := config.GetConfig()
 	logger := logging.GetLogger().Logger
 
 	dsn := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", cfg.Storage.Username, cfg.Storage.Password, cfg.Storage.Host, cfg.Storage.Port, cfg.Storage.Database)

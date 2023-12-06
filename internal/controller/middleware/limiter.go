@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -27,28 +29,40 @@ func (m *middleware) SyncProducts(next http.HandlerFunc) http.HandlerFunc {
 		ipv4Addr := r.RemoteAddr
 		logger.Info().Str("ip", ipv4Addr).Msg("getting request from")
 
-		var products []models.Product
-		if err := json.NewDecoder(r.Body).Decode(&products); err != nil {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			w.Write([]byte("сервер не смог десереализовать тело запроса"))
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("internal server error"))
 			return
 		}
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		var products []models.Product
+		if err := json.Unmarshal(body, &products); err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			msg := fmt.Sprint("unable to deserialize the request body: ", err.Error())
+			w.Write([]byte(msg))
+			return
+		}
+		logger.Debug().Any("products", products).Msg("test")
 
 		codesInUse := make([]string, 0, len(products))
+		m.mu.RLock()
 		for _, product := range products {
-			m.mu.RLock()
 			ip, ok := m.ProductInUse[product.Code]
 			if !ok {
-				m.mu.Lock()
-				m.ProductInUse[product.Code] = ipv4Addr
-				m.mu.Unlock()
+				go func() {
+					m.mu.Lock()
+					m.ProductInUse[product.Code] = ipv4Addr
+					m.mu.Unlock()
+				}()
 				continue
 			}
-			m.mu.RUnlock()
 			if ip != ipv4Addr {
 				codesInUse = append(codesInUse, product.Code)
 			}
 		}
+		m.mu.RUnlock()
 
 		if len(codesInUse) > 0 {
 			var buf strings.Builder
@@ -60,6 +74,7 @@ func (m *middleware) SyncProducts(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(buf.String()))
 			return
 		}
+		w.Header().Add("Content-Type", "application/json")
 		next(w, r)
 	}
 }
