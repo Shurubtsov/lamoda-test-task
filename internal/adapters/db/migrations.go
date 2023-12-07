@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Shurubtsov/lamoda-test-task/internal/config"
@@ -33,6 +34,10 @@ func Migrate(source string, version uint) error {
 	}
 
 	if err := m.Migrate(version); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			logging.GetLogger().Logger.Warn().Err(err).Msg("not need migrate data")
+			return nil
+		}
 		return err
 	}
 
