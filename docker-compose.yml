@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres
+    container_name: database
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: admin
+      POSGRES_USER: postgres
+      POSTGRES_DB: go_test_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data/
+    restart: always
+    networks:
+      - gonet
+  
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+    depends_on:
+      - db
+    links:
+      - db
+    networks:
+      - gonet
+  
+  app:
+    build: .
+    container_name: app
+    ports:
+      - 8082:8082
+    environment:
+      ADDRESS: "0.0.0.0:8082"
+      MIGRATION_VERSION: 2
+      MIGRATIONS_PATH: file://./
+      LEVEL: -1
+      OUTPUT: dev
+      DB_USERNAME: postgres
+      DB_PASSWORD: admin
+      DB_PORT: "5432"
+      DB_HOST: db
+      DB_DATABASE: go_test_db
+    depends_on:
+      - db
+    links:
+      - db
+    networks:
+      - gonet
+
+networks:
+  gonet:
+    driver: bridge
+
+volumes:
+  pgdata:
