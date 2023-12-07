@@ -33,6 +33,11 @@ type server struct {
 	exemptionUC   ExemptionUsecase
 }
 
+// responder отправляет ответы клиенту
+type responder struct {
+	w http.ResponseWriter
+}
+
 func NewServer(ruc ReservationUsecase, euc ExemptionUsecase, pie map[string]string) *server {
 	return &server{
 		productInUse:  pie,
@@ -44,6 +49,7 @@ func NewServer(ruc ReservationUsecase, euc ExemptionUsecase, pie map[string]stri
 func (s *server) ReservationHandler(w http.ResponseWriter, r *http.Request) {
 	logger := logging.GetLogger()
 	ctx := context.Background()
+	responder := &responder{w: w}
 
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -53,7 +59,7 @@ func (s *server) ReservationHandler(w http.ResponseWriter, r *http.Request) {
 	var products []models.Product
 	if err := json.NewDecoder(r.Body).Decode(&products); err != nil {
 		msg := "unable to deserialize the request body"
-		sendResponse(w, nil, nil, nil, msg, http.StatusUnprocessableEntity, err)
+		responder.sendResponse(http.StatusUnprocessableEntity, msg, err)
 		return
 	}
 
@@ -67,9 +73,15 @@ func (s *server) ReservationHandler(w http.ResponseWriter, r *http.Request) {
 		return false
 	})
 	if !(len(products) > 0) {
-		sendResponse(w, notValidProducts, nil, nil, "can't continue reservation of products on storage", http.StatusUnprocessableEntity, ErrAllProductsNotValid)
+		responder.sendResponse(
+			http.StatusUnprocessableEntity,
+			"can't continue reservation of products on storage",
+			ErrAllProductsNotValid,
+			responseOption("not_valid", notValidProducts),
+		)
 		return
 	}
+	// очищаем кэш используемых системой товаров
 	defer func() {
 		for _, product := range products {
 			s.mu.Lock()
@@ -77,23 +89,39 @@ func (s *server) ReservationHandler(w http.ResponseWriter, r *http.Request) {
 			s.mu.Unlock()
 		}
 	}()
-	filledProducts, err := s.reservationUC.ProductReservation(ctx, products)
+	reservedProducts, err := s.reservationUC.ProductReservation(ctx, products)
 	if err != nil {
-		sendResponse(w, nil, nil, nil, "reservation was ended with error", http.StatusInternalServerError, err)
+		responder.sendResponse(
+			http.StatusInternalServerError,
+			"reservation was ended with error",
+			err,
+		)
 		return
 	}
 
 	if len(notValidProducts) > 0 {
-		sendResponse(w, notValidProducts, filledProducts, nil, "not at all products were reserved", http.StatusMultiStatus, ErrNotValidatedProducts)
+		responder.sendResponse(
+			http.StatusMultiStatus,
+			"not at all products was reserved",
+			ErrNotValidatedProducts,
+			responseOption("reserved_products", reservedProducts),
+			responseOption("not_valid", notValidProducts),
+		)
 		return
 	}
 
-	sendResponse(w, notValidProducts, filledProducts, nil, "reservation successful complete", http.StatusOK, nil)
+	responder.sendResponse(
+		http.StatusOK,
+		"reservation successful complete",
+		nil,
+		responseOption("reserved_products", reservedProducts),
+	)
 }
 
 func (s *server) ExemptionHandler(w http.ResponseWriter, r *http.Request) {
 	logger := logging.GetLogger()
 	ctx := context.Background()
+	responder := &responder{w: w}
 
 	if r.Method != http.MethodDelete {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -103,7 +131,7 @@ func (s *server) ExemptionHandler(w http.ResponseWriter, r *http.Request) {
 	var products []models.Product
 	if err := json.NewDecoder(r.Body).Decode(&products); err != nil {
 		msg := "unable to deserialize the request body"
-		sendResponse(w, nil, nil, nil, msg, http.StatusUnprocessableEntity, err)
+		responder.sendResponse(http.StatusUnprocessableEntity, msg, err)
 		return
 	}
 
@@ -117,9 +145,15 @@ func (s *server) ExemptionHandler(w http.ResponseWriter, r *http.Request) {
 		return false
 	})
 	if !(len(products) > 0) {
-		sendResponse(w, notValidProducts, nil, nil, "can't continue exemption of products on storage", http.StatusUnprocessableEntity, ErrAllProductsNotValid)
+		responder.sendResponse(
+			http.StatusUnprocessableEntity,
+			"can't continue exemption of products on storage",
+			ErrAllProductsNotValid,
+			responseOption("not_valid", notValidProducts),
+		)
 		return
 	}
+	// очищаем кэш используемых системой товаров
 	defer func() {
 		for _, product := range products {
 			s.mu.Lock()
@@ -127,39 +161,72 @@ func (s *server) ExemptionHandler(w http.ResponseWriter, r *http.Request) {
 			s.mu.Unlock()
 		}
 	}()
-	filledProducts, err := s.exemptionUC.ProductExemption(ctx, products)
+	exemptedProducts, err := s.exemptionUC.ProductExemption(ctx, products)
 	if err != nil {
-		sendResponse(w, nil, nil, nil, "exemption was ended with error", http.StatusInternalServerError, err)
+		responder.sendResponse(
+			http.StatusInternalServerError,
+			"exemption was ended with error",
+			err,
+		)
 		return
 	}
 
 	if len(notValidProducts) > 0 {
-		sendResponse(w, notValidProducts, nil, filledProducts, "not at all products were exempt", http.StatusMultiStatus, ErrNotValidatedProducts)
+		responder.sendResponse(
+			http.StatusMultiStatus,
+			"not at all products were exempt",
+			ErrNotValidatedProducts,
+			responseOption("exempted_products", exemptedProducts),
+			responseOption("not_valid", notValidProducts),
+		)
 		return
 	}
 
-	sendResponse(w, notValidProducts, nil, filledProducts, "exemption successful complete", http.StatusOK, nil)
+	responder.sendResponse(
+		http.StatusOK,
+		"exemption successful complete",
+		nil,
+		responseOption("exempted_products", exemptedProducts),
+	)
 }
 
-func sendResponse(
-	w http.ResponseWriter,
-	notValid []models.Product,
-	reserved []models.Product,
-	exempted []models.Product,
-	msg string, code int,
-	err error,
-) {
-	status := http.StatusText(code)
-	response := models.NewProductsResponse(notValid, reserved, exempted, status, msg)
+// func (s *server) ReceivingProductsHandler(w http.ResponseWriter, r *http.Request) {
+// 	logger := logging.GetLogger()
+// 	ctx := context.Background()
+
+// 	if r.Method != http.MethodGet {
+// 		w.WriteHeader(http.StatusMethodNotAllowed)
+// 		return
+// 	}
+// }
+
+func (r *responder) sendResponse(code int, msg string, err error, args ...responseOpts) {
+	response := make(map[string]any)
+	response["status"] = http.StatusText(code)
+	response["message"] = msg
 	if err != nil {
-		response.Error = err.Error()
+		response["error"] = err.Error()
 	}
-
-	w.WriteHeader(code)
-
-	if err := json.NewEncoder(w).Encode(&response); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+	for _, arg := range args {
+		response[arg.text] = arg.value
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		r.w.WriteHeader(http.StatusInternalServerError)
 		msg := fmt.Sprint("unable to serialize the response: ", err.Error())
-		w.Write([]byte(msg))
+		r.w.Write([]byte(msg))
+	}
+	r.w.Write(data)
+}
+
+type responseOpts struct {
+	text  string
+	value any
+}
+
+func responseOption(text string, val any) responseOpts {
+	return responseOpts{
+		text:  text,
+		value: val,
 	}
 }
