@@ -15,12 +15,23 @@ type Product struct {
 	Count uint   `json:"count,omitempty"`
 }
 
-type ReservationResponse struct {
-	Status     string    `json:"status"`
-	Message    string    `json:"message"`
-	Error      string    `json:"error,omitempty"`
-	Successful []Product `json:"successful,omitempty"`
-	NotValid   []Product `json:"not_valid,omitempty"`
+type ProductsResponse struct {
+	Status           string    `json:"status"`
+	Message          string    `json:"message"`
+	Error            string    `json:"error,omitempty"`
+	ReservedProducts []Product `json:"reserved_products,omitempty"`
+	ExemptedProducts []Product `json:"exempted_products,omitempty"`
+	NotValid         []Product `json:"not_valid,omitempty"`
+}
+
+func NewProductsResponse(notValid []Product, reserved []Product, exempted []Product, status, msg string) ProductsResponse {
+	return ProductsResponse{
+		Status:           status,
+		Message:          msg,
+		ReservedProducts: reserved,
+		ExemptedProducts: exempted,
+		NotValid:         notValid,
+	}
 }
 
 func (p Product) Validate() error {
