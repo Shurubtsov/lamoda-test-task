@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Logging logging
 	Storage storage
+	Service service
 }
 
 type logging struct {
@@ -18,14 +19,17 @@ type logging struct {
 }
 
 type storage struct {
-	Username       string `env:"DB_USERNAME"`
-	Password       string `env:"DB_PASSWORD"`
-	Port           string `env:"DB_PORT"`
-	Database       string `env:"DB_DATABASE"`
-	Host           string `env:"DB_HOST"`
-	MigrationsPath string `env:"MIGRATIONS_PATH"`
+	Username string `env:"DB_USERNAME"`
+	Password string `env:"DB_PASSWORD"`
+	Port     string `env:"DB_PORT"`
+	Database string `env:"DB_DATABASE"`
+	Host     string `env:"DB_HOST"`
+}
 
-	MigrationVersion uint `env:"MIGRATION_VERSION"`
+type service struct {
+	Address          string `env:"ADDRESS"`
+	MigrationVersion uint   `env:"MIGRATION_VERSION"`
+	MigrationsPath   string `env:"MIGRATIONS_PATH"`
 }
 
 var (

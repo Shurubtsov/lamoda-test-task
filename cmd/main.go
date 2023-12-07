@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Shurubtsov/lamoda-test-task/internal/adapters/db"
+	"github.com/Shurubtsov/lamoda-test-task/internal/config"
 	v1 "github.com/Shurubtsov/lamoda-test-task/internal/controller/http/v1"
 	"github.com/Shurubtsov/lamoda-test-task/internal/controller/middleware"
 	"github.com/Shurubtsov/lamoda-test-task/internal/domain/service"
@@ -17,15 +18,16 @@ import (
 func main() {
 	logger := logging.GetLogger()
 	logger.Info().Msg("initialize dependencies")
+	cfg := config.GetConfig()
 
 	pgClient, err := postgresql.NewClient(context.TODO(), 5)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed create new pgx client")
 	}
 	defer pgClient.Close()
-	// if err := db.Migrate("file://./migrations", 1); err != nil {
-	// 	logger.Fatal().Err(err).Msg("migration failed")
-	// }
+	if err := db.Migrate(cfg.Service.MigrationsPath, cfg.Service.MigrationVersion); err != nil {
+		logger.Fatal().Err(err).Msg("migration failed")
+	}
 	repo := db.New(pgClient)
 	storageService := service.NewStorageService(repo)
 	productService := service.NewProductService(repo)
@@ -33,13 +35,14 @@ func main() {
 	reservationUC := reservation.New(storageService, productService, repo)
 
 	middleware := middleware.New()
-	server := v1.NewServer(reservationUC, middleware.ProductInUse)
+	server := v1.NewServer(reservationUC, productService, middleware.ProductInUse)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/reservation", middleware.SyncProducts(server.ReservationHandler))
+	mux.HandleFunc("/product/reservation", middleware.SyncProducts(server.ReservationHandler))
+	mux.HandleFunc("/product/exemption", middleware.SyncProducts(server.ExemptionHandler))
 
 	srv := http.Server{
-		Addr:    "0.0.0.0:8888",
+		Addr:    cfg.Service.Address,
 		Handler: mux,
 	}
 
