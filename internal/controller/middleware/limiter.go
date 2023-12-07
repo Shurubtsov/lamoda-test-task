@@ -65,7 +65,7 @@ func (m *middleware) SyncProducts(next http.HandlerFunc) http.HandlerFunc {
 
 		if len(codesInUse) > 0 {
 			var buf strings.Builder
-			buf.WriteString("один или несколько товаров уже используются другой системой:\n")
+			buf.WriteString("one or more products are already in use by another system:\n")
 			for _, code := range codesInUse {
 				buf.WriteString(fmt.Sprintf("{%s}\n", code))
 			}

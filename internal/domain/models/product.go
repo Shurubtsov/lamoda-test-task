@@ -16,7 +16,7 @@ type Product struct {
 }
 
 func (p Product) Validate() error {
-	r, err := regexp.Compile("^[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}-[A-Z0-9]{3}$")
+	r, err := regexp.Compile("^[A-Z]{2}-[A-Z0-9]+$")
 	if err != nil {
 		return err
 	}

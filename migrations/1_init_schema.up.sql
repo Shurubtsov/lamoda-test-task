@@ -6,13 +6,13 @@ CREATE TABLE IF NOT EXISTS storages (
 
 CREATE TABLE IF NOT EXISTS products (
 	product_id serial PRIMARY KEY,
-	product_name VARCHAR (15),
-	product_code VARCHAR (20) NOT NULL,
+	product_name VARCHAR (50),
+	product_code VARCHAR (10) NOT NULL,
 	product_size SMALLINT CHECK (product_size >= 0),
 	product_count SMALLINT CHECK (product_count >= 0)
 );
 
-CREATE TABLE IF NOT EXISTS storage_product (
+CREATE TABLE IF NOT EXISTS reservation (
 	storage_id INT NOT NULL,
 	product_id INT NOT NULL,
 	PRIMARY KEY (storage_id, product_id),
