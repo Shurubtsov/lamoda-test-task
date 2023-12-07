@@ -60,10 +60,17 @@ func (r *repository) FindProductsViaCode(ctx context.Context, products []models.
 	for i := 0; i < len(products); i++ {
 		product := &products[i]
 		if err := results.QueryRow().Scan(&product.ID, &product.Name, &product.Size, &product.Count); err != nil {
-			var pgErr *pgconn.PgError
+			var (
+				pgErr *pgconn.PgError
+			)
 			if errors.As(err, &pgErr) {
 				logger.Error().Msgf("SQL Error message (%s), Details: %s where -> %s", pgErr.Message, pgErr.Detail, pgErr.Where)
+			} else if errors.Is(err, pgx.ErrNoRows) {
+				// было бы хорошо отсюда доставать те товары, которые не заведены в таблице
+				logger.Warn().Err(err).Msgf("product with code: %s not exists", product.Code)
+				continue
 			}
+
 			return nil, err
 		}
 	}
@@ -75,12 +82,39 @@ func (r *repository) ReserveProducts(ctx context.Context, storage models.Storage
 	logger := logging.GetLogger()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
 	defer cancel()
-	q := `INSERT INTO storage_product (storage_id, product_id) VALUES (@storageID, @productID)`
+	q := `INSERT INTO reservation (storage_id, product_id) VALUES (@storageID, @productID)`
 	batch := &pgx.Batch{}
 	for _, product := range products {
 		args := pgx.NamedArgs{
 			"productID": product.ID,
 			"storageID": storage.ID,
+		}
+		batch.Queue(q, args)
+	}
+	results := r.client.SendBatch(ctx, batch)
+	defer results.Close()
+	for _, product := range products {
+		_, err := results.Exec()
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			logger.Warn().Msgf("prudct %s already exists", product.Name)
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (r *repository) ExemptProducts(ctx context.Context, products []models.Product) error {
+	logger := logging.GetLogger()
+	ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+	logger.Trace().Msg("start ExemptProducts")
+	defer cancel()
+	q := `DELETE FROM reservation USING products WHERE reservation.product_id = products.product_id AND products.product_id = @productID`
+	batch := &pgx.Batch{}
+	for _, product := range products {
+		args := pgx.NamedArgs{
+			"productID": product.ID,
 		}
 		batch.Queue(q, args)
 	}
