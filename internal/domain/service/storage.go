@@ -11,7 +11,6 @@ import (
 
 var (
 	ErrNilStorageObj = errors.New("object of storage is null")
-	ErrNilStorageID  = errors.New("id of storage is empty")
 )
 
 type StorageRepo interface {
@@ -42,8 +41,8 @@ func (s *storageService) GetAviableStorage(ctx context.Context) (*models.Storage
 		return nil, ErrNilStorageObj
 	}
 
-	if storage.ID == nil {
-		return nil, ErrNilStorageID
+	if err := storage.Validate(); err != nil {
+		return nil, err
 	}
 
 	return storage, nil

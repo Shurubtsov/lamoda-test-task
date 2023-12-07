@@ -17,6 +17,7 @@ var (
 
 type ProductRepo interface {
 	FindProductsViaCode(ctx context.Context, products []models.Product) ([]models.Product, error)
+	FindProductsViaStorageID(ctx context.Context, storageID uint) ([]models.Product, error)
 	ExemptProducts(ctx context.Context, products []models.Product) error
 }
 type productService struct {
@@ -66,4 +67,18 @@ func (ps *productService) ProductExemption(ctx context.Context, products []model
 	}
 
 	return filledProducts, nil
+}
+
+func (ps *productService) FindProducts(ctx context.Context, storageID uint) ([]models.Product, error) {
+	logger := logging.GetLogger()
+	logger.Trace().Msg("start FindProductIDs")
+	ctx, cancel := context.WithTimeout(ctx, time.Second*6)
+	defer cancel()
+
+	products, err := ps.repository.FindProductsViaStorageID(ctx, storageID)
+	if err != nil {
+		return nil, fmt.Errorf("FindProductsViaStorageID failed: %w", err)
+	}
+
+	return products, nil
 }

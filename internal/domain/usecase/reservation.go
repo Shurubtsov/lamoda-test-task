@@ -1,4 +1,4 @@
-package reservation
+package usecase
 
 import (
 	"context"
@@ -20,37 +20,37 @@ type (
 		GetProductsInfo(ctx context.Context, products []models.Product) ([]models.Product, error)
 	}
 )
-type usecase struct {
+type reservation struct {
 	storageService StorageService
 	productService ProductService
 	repository     Repo
 }
 
-func New(ss StorageService, ps ProductService, r Repo) *usecase {
-	return &usecase{
+func NewReservation(ss StorageService, ps ProductService, r Repo) *reservation {
+	return &reservation{
 		storageService: ss,
 		productService: ps,
 		repository:     r,
 	}
 }
 
-func (u *usecase) ProductReservation(ctx context.Context, products []models.Product) ([]models.Product, error) {
+func (r *reservation) ProductReservation(ctx context.Context, products []models.Product) ([]models.Product, error) {
 	logger := logging.GetLogger()
 	logger.Trace().Msg("start ProductReservation")
 	ctx, cancel := context.WithTimeout(ctx, time.Second*6)
 	defer cancel()
 
-	storage, err := u.storageService.GetAviableStorage(ctx)
+	storage, err := r.storageService.GetAviableStorage(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetAviableStorage failed: %w", err)
 	}
 
-	filledProducts, err := u.productService.GetProductsInfo(ctx, products)
+	filledProducts, err := r.productService.GetProductsInfo(ctx, products)
 	if err != nil {
 		return nil, fmt.Errorf("GetProductsInfo failed: %w", err)
 	}
 
-	if err := u.repository.ReserveProducts(ctx, *storage, filledProducts); err != nil {
+	if err := r.repository.ReserveProducts(ctx, *storage, filledProducts); err != nil {
 		return nil, fmt.Errorf("ReserveProducts failed: %w", err)
 	}
 

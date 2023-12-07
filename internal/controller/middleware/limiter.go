@@ -44,7 +44,6 @@ func (m *middleware) SyncProducts(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(msg))
 			return
 		}
-		logger.Debug().Any("products", products).Msg("test")
 
 		codesInUse := make([]string, 0, len(products))
 		m.mu.RLock()
